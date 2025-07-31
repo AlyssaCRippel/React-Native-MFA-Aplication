@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: mfa-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: mfa-app
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - mfa-network
+
+  # MFA API Backend
+  mfa-api:
+    build:
+      context: ./MFA-API
+      dockerfile: Dockerfile
+    container_name: mfa-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      MONGODB_URI: mongodb://admin:password123@mongodb:27017/mfa-app?authSource=admin
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production-docker-compose
+      EMAIL_USER: your-email@gmail.com
+      EMAIL_PASS: your-gmail-app-password
+      EMAIL_FROM: your-email@gmail.com
+    volumes:
+      - ./MFA-API:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - mfa-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  mfa-network:
+    driver: bridge
